@@ -28,15 +28,28 @@ function auditRoutine(rawText) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("'")) return; // PC-DMIS comment lines often start with '
 
+    // PC-DMIS often prefixes a statement with a label, e.g. "STARTUP =ALIGNMENT/START,...".
+    // Strip an optional "LABEL=" prefix before matching ALIGNMENT/ commands so labeled
+    // statements are recognized the same as unlabeled ones.
+    const alignLine = trimmed.replace(/^[A-Za-z_]\w*\s*=\s*(?=ALIGNMENT\s*\/)/i, '');
+
     // Alignment block boundaries
-    if (/^ALIGNMENT\s*\/\s*START/i.test(trimmed)) {
+    let mStart;
+    if ((mStart = /^ALIGNMENT\s*\/\s*START\b(?:.*?RECALL\s*:\s*([\w-]+))?/i.exec(alignLine))) {
       inAlignment = true;
       alignStartLine = lineNum;
       resetAlignState();
       alignmentBlocksFound++;
+      const recalledName = mStart[1];
+      if (recalledName && recalledName.toUpperCase() !== 'NONE') {
+        // Recalling a previously stored, named alignment pulls in a full, presumably
+        // already-validated 3-2-1 scheme - it doesn't need inline LEVEL/ROTATE/ORIGIN steps.
+        constrained = { Tx: true, Ty: true, Tz: true, Rx: true, Ry: true, Rz: true };
+        hasLevel = true; hasRotate = true; hasOrigin = true;
+      }
       return;
     }
-    if (/^ALIGNMENT\s*\/\s*END/i.test(trimmed)) {
+    if (/^ALIGNMENT\s*\/\s*END/i.test(alignLine)) {
       if (inAlignment) {
         // Evaluate DOF coverage at end of this alignment block
         const free = Object.entries(constrained).filter(([k, v]) => !v).map(([k]) => k);
@@ -77,7 +90,7 @@ function auditRoutine(rawText) {
 
     // LEVEL: constrains 2 rotations (the two axes perpendicular to leveled axis)
     let m;
-    if ((m = /^ALIGNMENT\s*\/\s*LEVEL\s*,\s*([XYZ]PLUS|[XYZ]MINUS)\s*,\s*([\w()]+)/i.exec(trimmed))) {
+    if ((m = /^ALIGNMENT\s*\/\s*LEVEL\s*,\s*([XYZ]PLUS|[XYZ]MINUS)\s*,\s*([\w()]+)/i.exec(alignLine))) {
       hasLevel = true;
       const axis = m[1][0].toUpperCase();
       datumFeaturesUsed.push(m[2]);
@@ -86,7 +99,7 @@ function auditRoutine(rawText) {
       else if (axis === 'Y') { constrained.Rx = true; constrained.Rz = true; }
       return;
     }
-    if ((m = /^ALIGNMENT\s*\/\s*ROTATE\s*,\s*([XYZ]AXIS)\s*,\s*([XYZ]PLUS|[XYZ]MINUS)\s*,\s*([\w()]+)(?:\s*,\s*([\w()]+))?/i.exec(trimmed))) {
+    if ((m = /^ALIGNMENT\s*\/\s*ROTATE\s*,\s*([XYZ]AXIS)\s*,\s*([XYZ]PLUS|[XYZ]MINUS)\s*,\s*([\w()]+)(?:\s*,\s*([\w()]+))?/i.exec(alignLine))) {
       hasRotate = true;
       const rotAxis = m[1][0].toUpperCase();
       datumFeaturesUsed.push(m[3]);
@@ -96,7 +109,7 @@ function auditRoutine(rawText) {
       else if (rotAxis === 'Z') constrained.Rz = true;
       return;
     }
-    if ((m = /^ALIGNMENT\s*\/\s*ORIGIN\s*,\s*(.+)/i.exec(trimmed))) {
+    if ((m = /^ALIGNMENT\s*\/\s*ORIGIN\s*,\s*(.+)/i.exec(alignLine))) {
       hasOrigin = true;
       const body = m[1];
       if (/\bX\b/i.test(body)) constrained.Tx = true;
@@ -106,7 +119,7 @@ function auditRoutine(rawText) {
       datumFeaturesUsed.push(...featMatches.filter(f => !/^[XYZ]$/i.test(f)));
       return;
     }
-    if (/^ALIGNMENT\s*\/\s*RECALL/i.test(trimmed)) {
+    if (/^ALIGNMENT\s*\/\s*RECALL/i.test(alignLine)) {
       // Recalling a saved alignment satisfies all DOF - treat as fully constrained
       constrained = { Tx: true, Ty: true, Tz: true, Rx: true, Ry: true, Rz: true };
       hasLevel = true; hasRotate = true; hasOrigin = true;
