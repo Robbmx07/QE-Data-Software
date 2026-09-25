@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QE Data Software - Quality Engineering Workbench</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js is vendored locally (js/vendor/chart.umd.js) so SPC charts keep working on shop-floor
+     machines with no internet access; only the Tailwind CDN script needs connectivity. -->
+<script src="js/vendor/chart.umd.js"></script>
+<!-- SheetJS (vendored, Apache-2.0 - see js/vendor/xlsx.LICENSE.txt) reads .xlsx/.xls files
+     dropped into Data Ingestion so raw PC-DMIS Excel exports work without conversion. -->
+<script src="js/vendor/xlsx.mini.min.js"></script>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col">
+  <div id="app-root" class="flex flex-col min-h-screen">
+    <div class="flex-1 flex items-center justify-center text-slate-400 text-sm">Loading QE Data Software...</div>
+  </div>
+
+  <script src="js/db.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/pcdmisAuditor.js"></script>
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/views/auditor.js"></script>
+  <script src="js/views/ingestion.js"></script>
+  <script src="js/views/spc.js"></script>
+  <script src="js/views/eightD.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

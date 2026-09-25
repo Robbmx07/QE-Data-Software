@@ -1,0 +1,27 @@
+/* Minor custom styles beyond Tailwind utility classes */
+
+html, body {
+  height: 100%;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea, input, select {
+  font-family: inherit;
+}
+
+@media print {
+  header, nav, .no-print {
+    display: none !important;
+  }
+}
