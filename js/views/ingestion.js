@@ -9,6 +9,7 @@ const Ingestion = (() => {
   let headerRow = [];
   let dataRows = [];
   let hasHeaderRow = true;
+  let pcdmisPatternDetected = false;
   let mapping = { label: '', nominal: '', actual: '', tolPlus: '', tolMinus: '', serial: '' };
   let selectedPartId = '';
   let serialOverride = '';
@@ -69,7 +70,24 @@ const Ingestion = (() => {
     return -1;
   }
 
+  // PC-DMIS's built-in "Report to Excel" output (sheet named "PCDmisExcelN") always uses a
+  // fixed, headerless 9-column layout: Char, Description, Type, Nominal, Actual, Tol+, Tol-,
+  // Deviation, OutTol. The Type column is a reliable fingerprint - a short (1-3 letter) code
+  // like R/M/A on every single row - because a generic headerless export in some other shop's
+  // own format is unlikely to happen to have that same column in that same position too.
+  function isNumericColumn(rowsToScan, c) {
+    return rowsToScan.every(r => String(r[c] ?? '').trim() !== '' && !isNaN(Utils.toNumber(r[c])));
+  }
+
+  function detectPCDMISExcelReport(rowsToScan) {
+    if (!rowsToScan.length || rowsToScan[0].length < 9) return false;
+    const typeColOk = rowsToScan.every(r => /^[A-Za-z]{1,3}$/.test(String(r[2] ?? '').trim()));
+    if (!typeColOk) return false;
+    return [3, 4, 5, 6].every(c => isNumericColumn(rowsToScan, c));
+  }
+
   function applyHeaderAndGuess() {
+    pcdmisPatternDetected = false;
     if (hasHeaderRow) {
       headerRow = rows[0].map(h => (h === null || h === undefined) ? '' : String(h));
       dataRows = rows.slice(1);
@@ -87,7 +105,12 @@ const Ingestion = (() => {
       headerRow = Array.from({ length: numCols }, (_, i) => 'Column ' + (i + 1));
       dataRows = rows;
       const labelCol = guessLabelColumnHeaderless(dataRows);
-      mapping = { label: labelCol >= 0 ? String(labelCol) : '', nominal: '', actual: '', tolPlus: '', tolMinus: '', serial: '' };
+      if (detectPCDMISExcelReport(dataRows)) {
+        pcdmisPatternDetected = true;
+        mapping = { label: '0', nominal: '3', actual: '4', tolPlus: '5', tolMinus: '6', serial: '' };
+      } else {
+        mapping = { label: labelCol >= 0 ? String(labelCol) : '', nominal: '', actual: '', tolPlus: '', tolMinus: '', serial: '' };
+      }
     }
   }
 
@@ -337,7 +360,8 @@ const Ingestion = (() => {
             <input type="checkbox" id="has-header-toggle" ${hasHeaderRow ? 'checked' : ''} />
             First row contains column headers
           </label>
-          ${!hasHeaderRow ? `<p class="text-xs text-amber-600 mt-1">No header row detected - columns are shown generically below, with a sample value from the first row to help you pick the right one.</p>` : ''}
+          ${!hasHeaderRow && pcdmisPatternDetected ? `<p class="text-xs text-emerald-600 mt-1">Recognized as a standard PC-DMIS Excel Report layout - Nominal/Actual/Tolerance columns have been pre-filled below. Please check them against the sample values before saving.</p>` : ''}
+          ${!hasHeaderRow && !pcdmisPatternDetected ? `<p class="text-xs text-amber-600 mt-1">No header row detected - columns are shown generically below, with a sample value from the first row to help you pick the right one.</p>` : ''}
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
