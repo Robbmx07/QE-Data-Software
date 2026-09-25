@@ -8,6 +8,9 @@
 <!-- Chart.js is vendored locally (js/vendor/chart.umd.js) so SPC charts keep working on shop-floor
      machines with no internet access; only the Tailwind CDN script needs connectivity. -->
 <script src="js/vendor/chart.umd.js"></script>
+<!-- SheetJS (vendored, Apache-2.0 - see js/vendor/xlsx.LICENSE.txt) reads .xlsx/.xls files
+     dropped into Data Ingestion so raw PC-DMIS Excel exports work without conversion. -->
+<script src="js/vendor/xlsx.mini.min.js"></script>
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col">
