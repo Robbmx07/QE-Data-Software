@@ -144,11 +144,42 @@ const Ingestion = (() => {
     render();
   }
 
+  const ACCEPTED_EXTENSIONS = /\.(csv|txt)$/i;
+
+  // Crude binary-content detector (NUL bytes, or a high ratio of control characters) -
+  // catches a misnamed file, or an unsupported format like .xlsx dropped past the
+  // extension check (drag-and-drop bypasses the file input's "accept" filter entirely).
+  function looksBinary(text) {
+    if (text.indexOf('\u0000') !== -1) return true;
+    const sampleLen = Math.min(text.length, 2000);
+    if (sampleLen === 0) return false;
+    let nonPrintable = 0;
+    for (let i = 0; i < sampleLen; i++) {
+      const code = text.charCodeAt(i);
+      if (code < 9 || (code > 13 && code < 32) || code === 127) nonPrintable++;
+    }
+    return (nonPrintable / sampleLen) > 0.05;
+  }
+
+  async function readAndParseFile(file) {
+    if (!file) return;
+    if (!ACCEPTED_EXTENSIONS.test(file.name)) {
+      alert(`"${file.name}" doesn't look like a CSV or TXT file. If this is an Excel workbook, open it and use File → Save As → CSV (Comma delimited), then import that file instead.`);
+      return;
+    }
+    const text = await file.text();
+    if (looksBinary(text)) {
+      alert(`"${file.name}" appears to contain binary data, not plain text - it may still be an Excel/Office file with a .csv/.txt extension. Please re-save it as a plain CSV or TXT file first.`);
+      return;
+    }
+    rawText = text;
+    parseInput();
+  }
+
   async function handleFile(e) {
     const file = e.target.files[0];
-    if (!file) return;
-    rawText = await file.text();
-    parseInput();
+    await readAndParseFile(file);
+    e.target.value = '';
   }
 
   function previewTable() {
@@ -260,6 +291,7 @@ const Ingestion = (() => {
         <p class="text-sm text-slate-500">Drag/upload or paste a CSV/TXT inspection log. The engine auto-detects the delimiter and lets you map columns once, then remembers the mapping as a reusable profile.</p>
         <div id="dropzone" class="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors cursor-pointer">
           <div class="text-sm">Drag &amp; drop a .csv or .txt file here, or click to browse</div>
+          <div class="text-xs mt-1">Excel files (.xlsx) aren't supported directly - use File &rarr; Save As &rarr; CSV first.</div>
           <input type="file" id="ingest-file" accept=".csv,.txt" class="hidden" />
         </div>
         <div class="text-xs text-slate-400 text-center">— or paste raw text below —</div>
@@ -283,7 +315,7 @@ const Ingestion = (() => {
         e.preventDefault();
         dz.classList.remove('border-blue-400');
         const file = e.dataTransfer.files[0];
-        if (file) { rawText = await file.text(); parseInput(); }
+        await readAndParseFile(file);
       });
       fileInput.addEventListener('change', handleFile);
       document.getElementById('btn-parse').addEventListener('click', () => {
